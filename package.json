@@ -5,7 +5,7 @@
   "main": "convert.js",
   "scripts": {
     "dev": "nodemon convert.js",
-    "start": "pm2 start convert.js --no-daemon",
+    "start": "pm2 start index.js --no-daemon",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "bellson",
