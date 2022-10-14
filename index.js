@@ -137,7 +137,8 @@ app.post("/v2/convert/pptx", async function (req, res) {
                 const zipName = nameWithoutTail + '.zip'
 
                 exec(
-                    `cd ${fileOutput} && tar.exe -cf  ${zipName} ${nameWithoutTail}`,
+                    `cd ${fileOutput} && Compress-Archive ${nameWithoutTail} ${zipName} `,
+                    // `cd ${fileOutput} && tar.exe -cf  ${zipName} ${nameWithoutTail}`,
                     (error, stdout, stderr) => {
                         if (error) {
                             console.log(`error: ${error.message}`);
