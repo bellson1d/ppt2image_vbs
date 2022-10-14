@@ -133,13 +133,14 @@ app.post("/v2/convert/pptx", async function (req, res) {
                 // 将多个 jpg 转换成一个 zip 文件
                 const directoryPath = fileOutput + '/' + nameWithoutTail;
                 // 转换成 zip 的文件名
-                const zipFileName = directoryPath + ".zip";
-                const zipName = nameWithoutTail + '.zip'
+                const zipFileName = directoryPath + ".tar";
+                const zipName = nameWithoutTail + '.tar'
 
                 exec(
-                    `cd ${fileOutput} && Compress-Archive ${nameWithoutTail} ${zipName} `,
-                    // `cd ${fileOutput} && tar.exe -cf  ${zipName} ${nameWithoutTail}`,
+                    // `Powershell.exe cd output && Compress-Archive ${'./' + nameWithoutTail + '/'} ${zipName} `,
+                    `cd ${fileOutput} && tar.exe -cf  ${zipName} ${nameWithoutTail}`,
                     (error, stdout, stderr) => {
+                        debugger
                         if (error) {
                             console.log(`error: ${error.message}`);
                             existFile(res, zipFileName, nameWithoutTail);
