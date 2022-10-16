@@ -10,6 +10,8 @@ const cookieParser = require("cookie-parser");
 const app = express();
 const port = 3000;
 
+const COMPRESS_EXTENSION = 'tar'
+
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -133,8 +135,8 @@ app.post("/v2/convert/pptx", async function (req, res) {
                 // 将多个 jpg 转换成一个 zip 文件
                 const directoryPath = fileOutput + '/' + nameWithoutTail;
                 // 转换成 zip 的文件名
-                const zipFileName = directoryPath + ".tar";
-                const zipName = nameWithoutTail + '.tar'
+                const zipFileName = directoryPath + "." + COMPRESS_EXTENSION;
+                const zipName = nameWithoutTail + '.' + COMPRESS_EXTENSION
 
                 exec(
                     // `Powershell.exe cd output && Compress-Archive ${'./' + nameWithoutTail + '/'} ${zipName} `,
@@ -167,7 +169,7 @@ app.get("/v2/download/zip", function ({ query, body }, res) {
 
     // 不包含文件后缀的名称
     const nameWithoutTail = `${tempFile}${detailId}`;
-    const fileNameTemp = `${nameWithoutTail}.zip`;
+    const fileNameTemp = `${nameWithoutTail}.${COMPRESS_EXTENSION}`;
     const filePath = fileOutput + "/" + fileNameTemp
 
     if (existFile(res, filePath, nameWithoutTail)) {
@@ -180,7 +182,7 @@ app.get("/v2/download/zip", function ({ query, body }, res) {
                 console.log(err);
                 res.send({ code: 500, message: "SendFile failed!" });
             } else {
-                console.log("Sent:", nameWithoutTail + ".zip");
+                console.log("Sent:", nameWithoutTail + "." + COMPRESS_EXTENSION);
 
                 // 返回成功删除 output 文件夹内容
                 fs.rmSync(filePath, { recursive: true, force: true });
