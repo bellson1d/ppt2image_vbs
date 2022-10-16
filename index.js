@@ -142,7 +142,6 @@ app.post("/v2/convert/pptx", async function (req, res) {
                     // `Powershell.exe cd output && Compress-Archive ${'./' + nameWithoutTail + '/'} ${zipName} `,
                     `cd ${fileOutput} && tar.exe -cf  ${zipName} ${nameWithoutTail}`,
                     (error, stdout, stderr) => {
-                        debugger
                         if (error) {
                             console.log(`error: ${error.message}`);
                             existFile(res, zipFileName, nameWithoutTail);
