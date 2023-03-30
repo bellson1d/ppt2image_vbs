@@ -1,17 +1,24 @@
-const express = require("express");
-const https = require("https"); // or 'https' for https:// URLs
-const path = require("path");
-const axios = require('axios')
-const bodyParser = require("body-parser");
-const { exec } = require("child_process");
-const fs = require("fs");
-const cookieParser = require("cookie-parser");
+import express from "express";
+import https from "https"; // or 'https' for https:// URs
+import path from "path";
+import axios from 'axios';
+import bodyParser from "body-parser";
+import { exec } from "child_process";
+import { timeDuration } from "./utils.js";
+import fs from "fs";
+import cors from 'cors'
+import cookieParser from "cookie-parser";
+import multer from "multer";
+import { fileURLToPath } from "url";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = 3000;
 
 const COMPRESS_EXTENSION = 'tar'
 
+app.use(cors())
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -35,7 +42,7 @@ const existFile = (res, pathName, originFileName = "") => {
                 }
             });
         }
-
+        console.log('???????????????', pathName, originFileName)
         res.send({
             code: 500,
             message: "Server Error! Please contact admin. " + pathName,
@@ -44,6 +51,25 @@ const existFile = (res, pathName, originFileName = "") => {
     }
     return true;
 };
+
+const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const { pptId } = req.query;
+
+        const dirPath = path.join(__dirname, `./output/${tempFile}${pptId}`)
+        // 创建对应文件夹
+        if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath)
+        }
+        cb(null, dirPath);
+    },
+    filename: function (req, file, cb) {
+        const { pptId } = req.query;
+        cb(null, `${tempFile}${pptId}.pptx`);
+    }
+});
+
+const upload = multer({ storage: storage });
 
 app.post("/v2/convert/pptx", async function (req, res) {
     const {
@@ -162,12 +188,12 @@ app.post("/v2/convert/pptx", async function (req, res) {
 });
 
 app.get("/v2/download/zip", function ({ query, body }, res) {
-    const { detailId } = query;
+    const { detailId, pptId } = query;
 
-    if (!detailId) res.send({ code: 500, message: "No detailId" });
+    if (!detailId && !pptId) res.send({ code: 500, message: "No detailId" });
 
     // 不包含文件后缀的名称
-    const nameWithoutTail = `${tempFile}${detailId}`;
+    const nameWithoutTail = `${tempFile}${pptId || detailId}`;
     const fileNameTemp = `${nameWithoutTail}.${COMPRESS_EXTENSION}`;
     const filePath = fileOutput + "/" + fileNameTemp
 
@@ -188,6 +214,109 @@ app.get("/v2/download/zip", function ({ query, body }, res) {
             }
         });
     }
+});
+
+app.post("/file/upload", upload.single('file'), function (req, res, next) {
+    if (!req.file) {
+        res.send({ code: 500, message: "No fileName" });
+        return;
+    }
+
+    const { pptId, isDev } = req.query;
+    const urlOrigin = isDev === '1' ? "https://drive-dev.felo.me" : "https://drive.felo.me"
+    const {
+        originalname: fileName,
+    } = req.file;
+
+    if (!fileName) {
+        res.send({ code: 500, message: "No fileName" });
+        return;
+    } else if (!/\.pptx?$/.test(fileName)) {
+        res.send({ code: 500, message: "File type is not ppt(x)!" });
+        return;
+    } else if (!pptId) {
+        res.send({ code: 500, message: "No pptId" });
+        return;
+    }
+    res.send({ code: 200, message: "File processing" });
+    console.log("fileName", fileName);
+
+    const fileNameTemp = `${tempFile}${pptId}.pptx`;
+    // 不包含文件后缀的名称
+    const nameWithoutTail = fileNameTemp.replace(/\.pptx?/, "");
+    // images 文件地址
+    const imagesPath = fileOutput + "/" + nameWithoutTail;
+
+    // 创建对应文件夹
+    if (!fs.existsSync(imagesPath)) {
+        fs.mkdirSync(imagesPath)
+    }
+
+    const startTime = new Date().getTime();
+
+    // pptx 文件地址
+    const filePath = imagesPath + "/" + fileNameTemp;
+
+    // 转换成 image 的文件名
+    const newImageFileName = imagesPath + "/" + nameWithoutTail + "-0001.jpg";
+    // 将 pptx 转换成 image 文件
+    exec(`cscript ./vbs/ppt2image.vbs ${filePath}`, (error, stdout, stderr) => {
+        if (error) {
+            console.log(`error: ${error.message}`);
+            existFile(res, newImageFileName, nameWithoutTail);
+        }
+        if (stderr) {
+            console.log(`stderr: ${stderr}`);
+            existFile(res, newImageFileName, nameWithoutTail);
+        }
+        console.log(`Convert to JPG success: ${stdout}`);
+
+        const afterZipCallback = () => {
+            // PPT创建成功回调
+            const cbUrl = urlOrigin + `/api/v4/open/detail/convert/ppt`;
+            console.log("cbUrl", cbUrl);
+
+            axios
+                .post(cbUrl, { DetailId: 0, pptId: pptId })
+                .then((res) => {
+                    console.log(`statusCode: ${res.status}`);
+                    console.log(res.data);
+                })
+                .catch((error) => {
+                    console.log(error);
+                    res.send({
+                        code: 500,
+                        message: "Callback request failed!",
+                    });
+                });
+        }
+
+        // 将多个 jpg 转换成一个 zip 文件
+        const directoryPath = fileOutput + '/' + nameWithoutTail;
+        // 转换成 zip 的文件名
+        const zipFileName = directoryPath + "." + COMPRESS_EXTENSION;
+        const zipName = nameWithoutTail + '.' + COMPRESS_EXTENSION
+
+        exec(
+            // `Powershell.exe cd output && Compress-Archive ${'./' + nameWithoutTail + '/'} ${zipName} `,
+            `cd ${fileOutput} && tar.exe -cf  ${zipName} ${nameWithoutTail}`,
+            (error, stdout, stderr) => {
+                if (error) {
+                    console.log(`error: ${error.message}`);
+                    existFile(res, zipFileName, nameWithoutTail);
+                }
+                if (stderr) {
+                    console.log(`stderr: ${stderr}`);
+                    existFile(res, zipFileName, nameWithoutTail);
+                }
+                console.log(`Convert to Zip: ${stdout}`);
+                console.log(`Duration: ${timeDuration(startTime)} seconds`);
+
+                fs.rmSync(directoryPath, { recursive: true, force: true });
+                afterZipCallback();
+            }
+        )
+    });
 });
 
 
